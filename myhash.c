@@ -3,6 +3,8 @@
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
+
 
 
 
@@ -11,11 +13,17 @@ void initSha (SHA512_CTX *c){
 }
 
 void feedSha(SHA512_CTX *c,int fd){
-	char buf[4096];
+	int i;
+	char buf = malloc(4096);
+	unsigned char md[SHA512_DIGEST_LENGTH];
 	while (read(fd, &buf, sizeof(buf)) > 0){
-		SHA512_Update(c, buf, sizeof(buf));
+		SHA512_Update(c, &buf, sizeof(buf));
 	}
-	SHA512_Final(//meterle el buffer donde lo queremos dejar,c)
+	SHA512_Final(md,c);
+
+	for (i=0;i< sizeof(md);i++){
+		printf("%02x", md[i]);
+	}
 }
 
 int main(int argc, char *argv[]){
