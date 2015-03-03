@@ -1,0 +1,22 @@
+------------------PRACTICA 2--------------
+segundo paso:
+
+BIO --> herramienta que te da openssl, #include <openssl/bio.h>                
+hay que hacer otro include que tengo que buscar --> /usr/include/openssl/*.h pa
+ra ver cual tiene BIO_f_base64                                                 
+hacer un programa que lea y escriba en pem.                                    
+me creo un string o un buff con enteros y lo aplano con pem, unsigned char ... 
+                                                                               
+b64 = BIO_new(BIO_f_base64) --> filtro que sabe pasar de crudo a base64        
+BIO_shoud_retry()                                                              
+bio = BIO_new_fp(f, ...)  --> bio que sabe operar con ficheros, crea una fuente
+ de datos a partir de un fichero, el fichero tiene que ser un stream (FILE =...
+, fopen(...,en modo escritura))                                                
+le enchufo a b64 la hash, lo conecto a bio (con BIO_push(b64,bio)) y lo que sal
+ga lo meto a un fichero con BIO_write, BIO_flush (para descargar el buffer), BI
+O_freeall(b64) para liberar, despues de write, un flush y luego libero. Esto me
+ escribe en un fichero en base64                                               
+                                                                               
+cat out.txt | base64 --decode --> para desaplanar en la terminal 
+                                                                               
+
