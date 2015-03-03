@@ -13,13 +13,13 @@
 enum{
 
 	BUF_LENGTH = 4096,
-	MSG_TO_SIGN_SIZE = 4096/8,
+	MSG_TO_SIGN_SIZE = (4096/8),
 
 
 };
 
 void 
-initSha (SHA512_CTX *c){
+initSha(SHA512_CTX *c){
 	SHA512_Init(c);
 }
 
@@ -60,16 +60,51 @@ pem_desaplana (){
 */
 
 void
-sign_hash(unsigned char hash[]){
+create_msg(unsigned char msg[],unsigned char hash[]){
 	unsigned char EMSASHA512ID[] = {0x30, 0x51, 0x30, 0x0d,
 									0x06, 0x09, 0x60, 0x86,
 									0x48, 0x01, 0x65, 0x03,
 									0x04, 0x02, 0x03, 0x05,
 									0x00, 0x04, 0x40};
+	int ID_len = sizeof(EMSASHA512ID);
+	int t_len = SHA512_DIGEST_LENGTH + ID_len;
+	unsigned char T[t_len];
+	int ps_len = MSG_TO_SIGN_SIZE-t_len-3;
+	unsigned char PS[ps_len];
+	char *aux = NULL;
+	int i;
+	memcpy(T,EMSASHA512ID,ID_len);
+	aux = T + ID_len;
+	memcpy(aux,hash,SHA512_DIGEST_LENGTH);
+	
+	for (i=0;i< ps_len;i++){
+		PS[i] = 0xFF;
+	}
+	unsigned char zero[] = {0x00};
+	unsigned char one[] = {0x01};
+	memcpy(msg,zero,sizeof(zero));
+	aux = msg + sizeof(zero);
+	memcpy(aux,one,sizeof(one));
+	aux = aux + sizeof(one);
+	memcpy(aux,PS,ps_len);
+	aux=aux+ps_len;
+	memcpy(aux,zero,sizeof(zero));
+	aux=aux+sizeof(zero);
+	memcpy(aux,T,t_len);
+
+}
+
+
+
+
+void
+sign_hash(unsigned char hash[], RSA *RSA_key){
 	
 	unsigned char msg[MSG_TO_SIGN_SIZE];
-	//usar memcpy y aritmetica de punteros
-	memcpy(hash,msg);
+	create_msg(msg,hash);
+	int rsa_size = RSA_size(RSA_key);
+	unsigned char sign[rsa_size];
+	RSA_private_encrypt(MSG_TO_SIGN_SIZE,msg,sign,RSA_PKCS1_PADDING);
 
 }
 
@@ -77,11 +112,10 @@ sign_hash(unsigned char hash[]){
 
 
 void 
-feedSha(SHA512_CTX *c,int fd,char *file_path){
-	int i;
-	int l;
+feedSha(SHA512_CTX *c,int fd,char *file_path,unsigned char md[]){
+	int i,l;
 	char *buf = malloc(BUF_LENGTH);
-	unsigned char md[SHA512_DIGEST_LENGTH];
+	
 
 	while ((l = read(fd, buf, BUF_LENGTH)) > 0){
 		SHA512_Update(c, buf, l);
@@ -103,30 +137,28 @@ feedSha(SHA512_CTX *c,int fd,char *file_path){
 
 	//pem(md);
 	//pem_desaplana();
-	/* ---------------------------------------Firmamos la hash en crudo -----------------------------------*/
-
-	sign_hash(md);
-
-
 }
-
 
 int 
 main(int argc, char *argv[]){
 SHA512_CTX context;
 int fd;
 char *file_path;
+unsigned char md[SHA512_DIGEST_LENGTH];
+RSA *RSA_key;
 
-	if(argc < 1){
+	if(argc < 2){
 		err(1, "arg error");
 		return 0;
 	}else{
 		file_path = argv[1];
+		RSA_key = argv[2];   //Falta parsear o hacer algo para que sea RSA un fichero que le pasemos 
 	}
 
 	fd = open(file_path,O_RDONLY);
 	initSha(&context);
-	feedSha(&context,fd,file_path);
+	feedSha(&context,fd,file_path,md);
+	sign_hash(md,RSA_key);
 
 	return 0;
 }
