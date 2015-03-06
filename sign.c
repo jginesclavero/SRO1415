@@ -12,6 +12,8 @@
 #include <stdbool.h>
 
 //gcc -Wall -g sign.c -lssl -lcrypto -o sign
+//./sign -v signature.pem myfile.txt pubkey.pem
+//./sign myfile.txt privkey.pem
 enum{
 
 	BUF_LENGTH = 4096,
