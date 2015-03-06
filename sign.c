@@ -15,13 +15,11 @@
 //./sign -v signature.pem myfile.txt pubkey.pem
 //./sign myfile.txt privkey.pem
 enum{
-
 	BUF_LENGTH = 4096,
 	MSG_TO_SIGN_SIZE = (4096/8),
 	STDOUT = 1,
 	PADDING_LEN = MSG_TO_SIGN_SIZE-SHA512_DIGEST_LENGTH,
-
-
+	READ_LEN_DES_PEM = 512,
 };
 
 void 
@@ -29,19 +27,24 @@ initSha(SHA512_CTX *c){
 	SHA512_Init(c);
 }
 
+void
+printHexa(unsigned char buf[], int len){
+	int i;
+	for (i=0;i< len;i++){
+				printf("%02x", buf[i]);
+			}
+	printf("\n");
+}
+
 void 
 feedSha(SHA512_CTX *c,int fd,char *file_path,unsigned char md[]){
 	int l;
 	char *buf = malloc(BUF_LENGTH);
-	
-
 	while ((l = read(fd, buf, BUF_LENGTH)) > 0){
 		SHA512_Update(c, buf, l);
 	}
-
 	if(l < 0)
 		err(1, "read error");
-
 	SHA512_Update(c, file_path, strlen(file_path)); //Alimentamos sha512 con el nombre del fichero
 	SHA512_Final(md,c);
 	free(buf);
@@ -64,31 +67,14 @@ pem (unsigned char sign[]){
 
 void 
 pem_desaplana (FILE *f,unsigned char *buf){
-	BIO *bio, *b64, *bio_out;
-	FILE *fout = fopen("aux.txt","w");
- 	char inbuf[512];
+	BIO *bio, *b64;
  	int inlen;
  	b64 = BIO_new(BIO_f_base64());
  	bio = BIO_new_fp(f, BIO_NOCLOSE);
-
- 	//bio_out = BIO_new_mem_buf(buf,MSG_TO_SIGN_SIZE);  //PORQUE NO FUNCIONA??
-
- 	bio_out = BIO_new_fp(fout,BIO_CLOSE);
- 	BIO_push(b64, bio);
-
- 	while((inlen = BIO_read(b64, inbuf, 512)) > 0) //leemos de b64 y vamos metiendolo en inbuf para luego 
-        BIO_write(bio_out, inbuf, inlen);			//escribirlo en el buffer (bio_out)
-
- 	BIO_flush(bio_out);
+ 	BIO_push(b64,bio);
+ 	while((inlen = BIO_read(b64, buf, READ_LEN_DES_PEM)) > 0){}
  	BIO_free_all(b64);
- 	fclose(fout);
-
- 	int fin = open("aux.txt",O_RDONLY);
- 	inlen = read(fin, buf, MSG_TO_SIGN_SIZE);
- 	while (inlen > 0){
-        inlen = read(fin, buf, MSG_TO_SIGN_SIZE);
-	}
-
+ 	fclose(f);
 }
 
 void
@@ -102,7 +88,7 @@ create_padding(unsigned char padding[]){
 	int t_len = SHA512_DIGEST_LENGTH + ID_len;
 	int ps_len = MSG_TO_SIGN_SIZE-t_len-3;
 	unsigned char PS[ps_len];
-	char *aux = NULL;
+	unsigned char *aux = NULL;
 	int i;
 	for (i=0;i< ps_len;i++){
 		PS[i] = 0xFF;
@@ -113,8 +99,6 @@ create_padding(unsigned char padding[]){
 	aux = padding + sizeof(zero);
 	memcpy(aux,one,sizeof(one));
 	aux = aux + sizeof(one);
-
-
 	memcpy(aux,PS,ps_len);
 	aux=aux+ps_len;
 	memcpy(aux,zero,sizeof(zero));
@@ -126,17 +110,14 @@ bool
 check_padding(unsigned char sign[]){
 	unsigned char padding[PADDING_LEN];
 	create_padding(padding);
-	int i=0;
-	while(padding[i] == sign[i] && i<PADDING_LEN){
-		i++;
-	}
-	return (i==PADDING_LEN);
+	unsigned char padding_sign[PADDING_LEN];
+	memcpy(padding_sign,sign,PADDING_LEN);
+	return (strcmp((char *)padding,(char *)padding_sign)==0);
 }
 
 bool
 check_hash(unsigned char sign[],int fd,char *file_path){
-	char *aux;
-	int i=0;
+	unsigned char *aux;
 	SHA512_CTX context;
 	aux = sign + PADDING_LEN;
 	unsigned char hash_origin[SHA512_DIGEST_LENGTH];
@@ -145,11 +126,7 @@ check_hash(unsigned char sign[],int fd,char *file_path){
 
 	initSha(&context);
 	feedSha(&context,fd,file_path,hash_file);
-
-	while(hash_file[i] == hash_origin[i] && i<SHA512_DIGEST_LENGTH){
-		i++;
-	}
-	return (i==SHA512_DIGEST_LENGTH);
+	return (strcmp((char *)hash_origin,(char *)hash_file)==0);
 }
 
 bool
@@ -160,51 +137,37 @@ decode(unsigned char *buf,RSA *RSA_key,int file_to_check,char *file_path){
 	}else{
 		return false;
 	}
-	
-	
 }
-
-
 
 void
 create_msg(unsigned char msg[],unsigned char hash[]){
 	unsigned char padding[PADDING_LEN];
 	create_padding(padding);
-	char *aux = NULL;
+	unsigned char *aux;
 	memcpy(msg,padding,PADDING_LEN);
 	aux = msg + PADDING_LEN;
 	memcpy(aux,hash,SHA512_DIGEST_LENGTH);
 }
+
 void
 sign_hash(unsigned char hash[], RSA *RSA_key){
-	
 	unsigned char msg[MSG_TO_SIGN_SIZE];
 	create_msg(msg,hash);
 	int rsa_size = RSA_size(RSA_key);
 	unsigned char sign[rsa_size];
 	RSA_private_encrypt(MSG_TO_SIGN_SIZE,msg,sign,RSA_key,RSA_NO_PADDING);
-	
-	/*
-	int i;
-	for (i=0;i< rsa_size;i++){
-				printf("%02x", sign[i]);
-			}
-	printf("\n");
-	*/
 	pem(sign);
-
 }
-
 
 int 
 main(int argc, char *argv[]){
-SHA512_CTX context;
-int fd,file_to_check;
-char *file_path,*key_path,*sign_path;
-FILE *key,*sign;
-unsigned char md[SHA512_DIGEST_LENGTH];
-unsigned char buf_desaplana[MSG_TO_SIGN_SIZE];
-RSA *RSA_key = RSA_new();
+	SHA512_CTX context;
+	int fd,file_to_check;
+	char *file_path,*key_path,*sign_path;
+	FILE *key,*sign;
+	unsigned char md[SHA512_DIGEST_LENGTH];
+	unsigned char buf_desaplana[MSG_TO_SIGN_SIZE];
+	RSA *RSA_key = RSA_new();
 
 	if(argc == 3){
 		file_path = argv[1];
@@ -239,7 +202,7 @@ RSA *RSA_key = RSA_new();
 			if(decode(buf_desaplana,RSA_key,file_to_check,file_path)){
 				return 0;
 			}else{
-				err(1, "Firma incorrecta");
+				err(1, "Incorrect signature");
 				return 0;
 			}
 		}
