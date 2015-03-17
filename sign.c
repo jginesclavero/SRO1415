@@ -123,7 +123,6 @@ check_hash(unsigned char sign[],int fd,char *file_path){
 	unsigned char hash_origin[SHA512_DIGEST_LENGTH];
 	unsigned char hash_file[SHA512_DIGEST_LENGTH];
 	memcpy(hash_origin,aux,SHA512_DIGEST_LENGTH);
-
 	initSha(&context);
 	feedSha(&context,fd,file_path,hash_file);
 	return (memcmp(hash_origin,hash_file,SHA512_DIGEST_LENGTH)==0);
