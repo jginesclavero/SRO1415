@@ -112,7 +112,7 @@ check_padding(unsigned char sign[]){
 	create_padding(padding);
 	unsigned char padding_sign[PADDING_LEN];
 	memcpy(padding_sign,sign,PADDING_LEN);
-	return (strcmp((char *)padding,(char *)padding_sign)==0);
+	return (memcmp(padding,padding_sign,PADDING_LEN)==0);
 }
 
 bool
@@ -126,7 +126,7 @@ check_hash(unsigned char sign[],int fd,char *file_path){
 
 	initSha(&context);
 	feedSha(&context,fd,file_path,hash_file);
-	return (strcmp((char *)hash_origin,(char *)hash_file)==0);
+	return (memcmp(hash_origin,hash_file,SHA512_DIGEST_LENGTH)==0);
 }
 
 bool
